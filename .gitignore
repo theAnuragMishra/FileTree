@@ -1,0 +1,25 @@
+# Build outputs (compiled binaries & .app bundles)
+build/
+dist/
+
+# Iconset temporary generation directories
+*.iconset/
+
+# Swift compilation artifacts
+*.o
+*.dylib
+*.swiftmodule
+*.swiftdoc
+*.swiftsourceinfo
+
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor & IDE configurations
+.vscode/
+.idea/
+*.swp
+*.swo
