@@ -7,8 +7,11 @@ cd "$DIR"
 BUILD_DIR="build"
 mkdir -p "$BUILD_DIR"
 
-echo "==> Compiling native Swift binary..."
+echo "==> Compiling native GUI app binary..."
 swiftc -O -parse-as-library FileTreeApp.swift -o "$BUILD_DIR/FileTree"
+
+echo "==> Compiling native CLI launcher (ft)..."
+swiftc -O ft.swift -o "$BUILD_DIR/ft"
 
 echo "==> Creating macOS App bundle..."
 APP_DIR="$BUILD_DIR/FileTree.app"
@@ -17,6 +20,9 @@ mkdir -p "$APP_DIR/Contents/Resources"
 
 cp "$BUILD_DIR/FileTree" "$APP_DIR/Contents/MacOS/FileTree"
 chmod +x "$APP_DIR/Contents/MacOS/FileTree"
+
+cp "$BUILD_DIR/ft" "$APP_DIR/Contents/MacOS/ft"
+chmod +x "$APP_DIR/Contents/MacOS/ft"
 
 ICON_ENTRY=""
 # Look for AppIcon.icns in project root
@@ -51,6 +57,8 @@ cat << EOF > "$APP_DIR/Contents/Info.plist"
     <string>13.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
 $ICON_ENTRY
 </dict>
 </plist>
@@ -58,5 +66,9 @@ EOF
 
 echo "==> Build complete!"
 echo "Outputs generated in $BUILD_DIR/:"
-echo "  open $BUILD_DIR/FileTree.app"
-echo "  or: ./$BUILD_DIR/FileTree"
+echo "  App: $BUILD_DIR/FileTree.app"
+echo "  CLI: $BUILD_DIR/ft"
+echo ""
+echo "Usage:"
+echo "  ./$BUILD_DIR/ft .       (Opens GUI loaded with current directory)"
+echo "  ./$BUILD_DIR/ft <path>  (Opens GUI loaded with specified directory)"

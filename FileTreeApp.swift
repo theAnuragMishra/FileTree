@@ -2,13 +2,88 @@ import SwiftUI
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var window: NSWindow?
+    let viewModel = TreeViewModel()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApplication.shared.setActivationPolicy(.regular)
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        NSApp.setActivationPolicy(.regular)
+        setupMenuBar()
+
+        let contentView = ContentView(viewModel: viewModel)
+
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        win.minSize = NSSize(width: 500, height: 400)
+        win.center()
+        win.title = "FileTree"
+        win.contentView = NSHostingView(rootView: contentView)
+        win.makeKeyAndOrderFront(nil)
+        win.makeFirstResponder(nil)
+
+        self.window = win
+
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            window?.makeKeyAndOrderFront(nil)
+        }
+        return true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
+    }
+
+    private func setupMenuBar() {
+        let mainMenu = NSMenu()
+
+        // App Menu
+        let appMenuItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "About FileTree", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: "Hide FileTree", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthers = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(hideOthers)
+        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: "Quit FileTree", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenuItem.submenu = appMenu
+        mainMenu.addItem(appMenuItem)
+
+        // File Menu
+        let fileMenuItem = NSMenuItem()
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileMenuItem.submenu = fileMenu
+        mainMenu.addItem(fileMenuItem)
+
+        // Edit Menu
+        let editMenuItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+
+        // Window Menu
+        let windowMenuItem = NSMenuItem()
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenuItem.submenu = windowMenu
+        mainMenu.addItem(windowMenuItem)
+
+        NSApp.mainMenu = mainMenu
     }
 }
 
@@ -69,18 +144,36 @@ final class TreeViewModel: ObservableObject {
     @Published var rootItems: [FileItem] = []
     @Published var statusMessage: String? = nil
 
-    func loadRootDirectory() {
-        let trimmed = pathInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    init() {
+        let args = CommandLine.arguments.dropFirst()
+        for arg in args {
+            if !arg.hasPrefix("-") {
+                loadDirectory(arg)
+                break
+            }
+        }
+    }
+
+    func loadDirectory(_ path: String) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             rootItems = []
             statusMessage = "Please enter a root directory path."
             return
         }
 
-        let expandedPath = NSString(string: trimmed).expandingTildeInPath
-        var isDir: ObjCBool = false
+        var expandedPath = NSString(string: trimmed).expandingTildeInPath
+        if !expandedPath.hasPrefix("/") {
+            let cwd = FileManager.default.currentDirectoryPath
+            expandedPath = (cwd as NSString).appendingPathComponent(expandedPath)
+        }
 
-        guard FileManager.default.fileExists(atPath: expandedPath, isDirectory: &isDir) else {
+        let standardizedUrl = URL(fileURLWithPath: expandedPath).standardized
+        let resolvedPath = standardizedUrl.path
+        self.pathInput = resolvedPath
+
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: resolvedPath, isDirectory: &isDir) else {
             rootItems = []
             statusMessage = "Directory not found: \(trimmed)"
             return
@@ -92,8 +185,7 @@ final class TreeViewModel: ObservableObject {
             return
         }
 
-        let rootUrl = URL(fileURLWithPath: expandedPath)
-        let rootNode = FileItem(url: rootUrl, isDirectory: true)
+        let rootNode = FileItem(url: standardizedUrl, isDirectory: true)
         rootNode.loadChildren()
 
         if let children = rootNode.children {
@@ -103,6 +195,10 @@ final class TreeViewModel: ObservableObject {
             self.rootItems = []
             self.statusMessage = "Unable to read directory contents"
         }
+    }
+
+    func loadRootDirectory() {
+        loadDirectory(pathInput)
     }
 }
 
@@ -234,21 +330,16 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(minWidth: 550, minHeight: 450)
+        .frame(minWidth: 500, minHeight: 400)
     }
 }
 
 @main
-struct FileTreeApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var viewModel = TreeViewModel()
-
-    var body: some Scene {
-        WindowGroup {
-            ContentView(viewModel: viewModel)
-                .navigationTitle("FileTree")
-        }
-        .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified)
+struct FileTreeApp {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
     }
 }
