@@ -1,74 +1,34 @@
-#!/bin/bash
-set -e
+#!/bin/sh
+set -eu
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$DIR"
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-BUILD_DIR="build"
-mkdir -p "$BUILD_DIR"
+swift build --package-path "$ROOT" --configuration release
 
-echo "==> Compiling native GUI app binary..."
-swiftc -O -parse-as-library FileTreeApp.swift -o "$BUILD_DIR/FileTree"
+BIN_DIR=$(swift build --package-path "$ROOT" --configuration release --show-bin-path)
 
-echo "==> Compiling native CLI launcher (ft)..."
-swiftc -O ft.swift -o "$BUILD_DIR/ft"
+APP="$ROOT/build/FileTree.app"
+STAGING="$ROOT/build/.FileTree.app"
+rm -rf "$STAGING"
+mkdir -p "$STAGING/Contents/MacOS" "$STAGING/Contents/Resources"
+cp "$BIN_DIR/FileTree" "$STAGING/Contents/MacOS/FileTree"
+cp "$BIN_DIR/ft" "$STAGING/Contents/MacOS/ft"
 
-echo "==> Creating macOS App bundle..."
-APP_DIR="$BUILD_DIR/FileTree.app"
-mkdir -p "$APP_DIR/Contents/MacOS"
-mkdir -p "$APP_DIR/Contents/Resources"
+cp "$ROOT/Resources/AppIcon.icns" "$STAGING/Contents/Resources/AppIcon.icns"
+cp "$ROOT/Resources/Info.plist" "$STAGING/Contents/Info.plist"
+printf 'APPL????' > "$STAGING/Contents/PkgInfo"
 
-cp "$BUILD_DIR/FileTree" "$APP_DIR/Contents/MacOS/FileTree"
-chmod +x "$APP_DIR/Contents/MacOS/FileTree"
+rm -rf "$APP"
+mv "$STAGING" "$APP"
 
-cp "$BUILD_DIR/ft" "$APP_DIR/Contents/MacOS/ft"
-chmod +x "$APP_DIR/Contents/MacOS/ft"
+cat << EOF
 
-ICON_ENTRY=""
-# Look for AppIcon.icns in project root
-if [ -f "AppIcon.icns" ]; then
-    cp AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
-    ICON_ENTRY="    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>"
-fi
+==> Build complete!
+Outputs generated in $ROOT/build:
+  App: $APP
+  CLI: $APP/Contents/MacOS/ft
 
-cat << EOF > "$APP_DIR/Contents/Info.plist"
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleExecutable</key>
-    <string>FileTree</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.local.FileTree</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>FileTree</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-$ICON_ENTRY
-</dict>
-</plist>
+Usage:
+  $APP/Contents/MacOS/ft .        (Opens GUI loaded with current directory)
+  $APP/Contents/MacOS/ft <path>   (Opens GUI loaded with specified directory)
 EOF
-
-echo "==> Build complete!"
-echo "Outputs generated in $BUILD_DIR/:"
-echo "  App: $BUILD_DIR/FileTree.app"
-echo "  CLI: $BUILD_DIR/ft"
-echo ""
-echo "Usage:"
-echo "  ./$BUILD_DIR/ft .       (Opens GUI loaded with current directory)"
-echo "  ./$BUILD_DIR/ft <path>  (Opens GUI loaded with specified directory)"

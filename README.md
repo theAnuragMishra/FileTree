@@ -10,10 +10,7 @@ Run the build script to compile the GUI app and the `ft` CLI into `build/`:
 ./build.sh
 ```
 
-This compiles:
-- `build/FileTree.app` (macOS GUI application bundle, containing `Contents/MacOS/FileTree` and `Contents/MacOS/ft`)
-- `build/FileTree` (Standalone GUI binary)
-- `build/ft` (Standalone CLI launcher binary)
+This compiles `build/FileTree.app` (macOS GUI application bundle, containing `Contents/MacOS/FileTree` and `Contents/MacOS/ft`).
 
 ## Installing to `/Applications`
 
@@ -59,8 +56,6 @@ ft .
 # Or open any specific path
 ft ~/Documents
 ```
-
-If running without installing to `/Applications`, you can also use `./build/ft .` directly.
 
 ## Uninstalling
 

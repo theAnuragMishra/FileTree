@@ -1,4 +1,5 @@
 # Build outputs (compiled binaries & .app bundles)
+.build/
 build/
 dist/
 
